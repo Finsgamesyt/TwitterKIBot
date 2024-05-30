@@ -1,18 +1,16 @@
-import yaml
-
 from twitter.scraper import Scraper
 
 class TwitterScraper:
 
-    def __init__(self, email: str, username: str, password: str):
+    def __init__(self, email: str, username: str, password: str): # benötigte Parameter für Library
         # https://github.com/trevorhobenshield/twitter-api-client/blob/main/readme.md
         self.scraper = Scraper(email, username, password)
 
     def scrape(self, tweet_id: int) -> list:
-        tweets_data = self.scraper.tweets_details([tweet_id])
-        tweets = TwitterScraper._extract_tweets(tweets_data)
-        tree = TwitterScraper._build_tweet_tree(tweets.copy())
-        return TwitterScraper._clean_tweet_tree(tree)
+        tweets_data = self.scraper.tweets_details([tweet_id]) # Scraper holt Informationen über Tweets
+        tweets = TwitterScraper._extract_tweets(tweets_data) # Nötige Informationen werden extrahiert und als Dictionary gespeichert
+        tree = TwitterScraper._build_tweet_tree(tweets.copy()) # Dictionary wird neu sortiert
+        return TwitterScraper._clean_tweet_tree(tree) # nun überflüssige Informationen werden entfernt
 
     @staticmethod
     def _extract_tweets(tweets_data: dict):
@@ -44,19 +42,19 @@ class TwitterScraper:
 
     @staticmethod
     def _build_tweet_tree(tweets: list, tree: dict = None) -> dict:
-        if tree is None:
+        if tree is None: # wird für wiederholtes selbstaufrufen übersprungen, da unnötig
             tree = {}
             for i in tweets.copy():
-                if i['replyToId'] is None:
+                if i['replyToId'] is None: #Wenn dieser Tweet keine replyToID besitzt -> Der Tweet ist der orginaltweet, alle anderen antworten auf einen Tweet
                     tree[i['id']] = i
-                    tree[i['id']]['children'] = {}
+                    tree[i['id']]['children'] = {} # erstellt Dictionary für die Kinder
                     tweets.remove(i)
         for i in tweets.copy():
-            if i['replyToId'] in tree.keys():
+            if i['replyToId'] in tree.keys(): #Wenn dieser Tweet auf einen Tweet antwortet:
                 i['children'] = {}
-                tree[i['replyToId']]['children'][i['id']] = i
+                tree[i['replyToId']]['children'][i['id']] = i #setze die Id des Kommentars
                 tweets.remove(i)
-        for child in tree.values():
+        for child in tree.values(): # wird für alle Kommentare wiederholt
             TwitterScraper._build_tweet_tree(tweets, child['children'])
         return tree
 
@@ -66,17 +64,11 @@ class TwitterScraper:
         for i in l:
             children = i.pop('children')
             del i['replyToId']
-            i['children'] = TwitterScraper._clean_tweet_tree(children)
+            i['children'] = TwitterScraper._clean_tweet_tree(children) # wiederholt für alle Kommentare
         return l
 
     @staticmethod
-    def _strip_ids(l: list) -> list:
+    def _strip_ids(l: list) -> list: # löscht id's aus den Daten
         for i in l:
             del i['id']
             TwitterScraper._strip_ids(i['children'])
-
-    @staticmethod
-    def clean_tree_to_yaml(cleaned: list) -> str:
-        cleaned = cleaned.copy()
-        TwitterScraper._strip_ids(cleaned)
-        return yaml.dump(cleaned, indent=2, sort_keys=False)
